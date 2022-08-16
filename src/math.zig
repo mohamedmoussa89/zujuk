@@ -75,42 +75,24 @@ pub const Vector3f = struct {
 };
 
 pub const Matrix4f = struct {
-    data: [16]f32,
+    data: [4][4]f32,
 
-    pub fn initArray(array: [16]f32) Matrix4f {
+    pub fn initArray(array: [4][4]f32) Matrix4f {
         return Matrix4f{
             .data = array
         };
     }
 
-    pub fn initZero() Matrix4f {        
-        return Matrix4f {
-            .data = .{0.0} ** 16
-        };
-    }    
-    
-    pub fn get(self: Matrix4f, i: u32, j: u32) f32 {
-        return self.data[4*i + j];
-    }
-
-    pub fn set(self: *Matrix4f, i: u32, j: u32, value: f32) void{
-        self.data[4*i + j] = value;
-    }
-
-    pub fn add(self: *Matrix4f, i: u32, j: u32, value: f32) void{
-        self.data[4*i + j] += value;
-    }
-
     pub const zero = Matrix4f {
-        .data = .{0.0} ** 16
+        .data = .{.{0.0} ** 4} ** 4
     };
 
     pub const identity = Matrix4f { 
-        .data = [16]f32{
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0,
+        .data = [_][4]f32{
+            .{1.0, 0.0, 0.0, 0.0},
+            .{0.0, 1.0, 0.0, 0.0},
+            .{0.0, 0.0, 1.0, 0.0},
+            .{0.0, 0.0, 0.0, 1.0}
     }};
 };
 
@@ -189,14 +171,20 @@ pub fn subtract(a: Point3f, b: Point3f) Vector3f {
 }
 
 pub fn multiply(matA: Matrix4f, matB: Matrix4f) Matrix4f{
-    var result = Matrix4f.initZero();
+    var result = Matrix4f.zero;
+    
+    var r = &result.data;
+    var mA = matA.data;
+    var mB = matB.data;
+
     {var i: u32 = 0; while (i < 4) : (i += 1){        
         var j: u32 = 0; while (j < 4) : (j += 1){            
             var k: u32 = 0; while (k < 4) : (k += 1){
-                result.add(i, j, matA.get(i, k) * matB.get(k, j));
+                (r.*)[i][j] += mA[i][k] * mB[k][j];
             }
         }
     }}
+
     return result;
 }
 
@@ -216,18 +204,19 @@ pub fn transformPoint3f(mat: Matrix4f, point: Point3f) Point3f {
 
     var p = point.asConstSlice();
     var r = result.asSlice();    
+    var m = mat.data;
 
     // get w component
-    var w = mat.get(3, 3);
+    var w = m[3][3];
     {var j: u32 = 0; while (j < 3) : (j += 1){
-        w += mat.get(3, j) * p[j];
+        w += m[3][j] * p[j];
     }}
 
     // multiply out and scale by w to get equivalent Euclidean point
     {var i: u32 = 0; while (i < 3) : (i += 1){
-        r[i] = mat.get(i, 3);
+        r[i] = m[i][3];
         {var j: u32 = 0; while (j < 3) : (j +=1){
-            r[i] += mat.get(i,j) * p[j];
+            r[i] += m[i][j] * p[j];
         }}
         r[i] /= w;
     }}
@@ -237,11 +226,14 @@ pub fn transformPoint3f(mat: Matrix4f, point: Point3f) Point3f {
 
 pub fn transformVector3f(mat: Matrix4f, vector: Vector3f) Vector3f {    
     var result = Vector3f.zero;
+
     var v = vector.asConstSlice();
     var r = result.asSlice();
+    var m = mat.data;
+
     {var i: u32 = 0; while (i < 3):(i += 1){
         {var j: u32 = 0; while (j < 3):(j += 1){
-            r[i] += mat.get(i, j) * v[j];            
+            r[i] += m[i][j] * v[j];            
         }}
     }}
     return result;
@@ -249,10 +241,10 @@ pub fn transformVector3f(mat: Matrix4f, vector: Vector3f) Vector3f {
 
 pub fn globalToLocalTransform(o: Point3f, e1: Vector3f, e2: Vector3f, e3: Vector3f) Matrix4f {    
     return Matrix4f.initArray(.{
-        e1.x, e1.y, e1.z, -(e1.x*o.x + e1.y*o.y + e1.z*o.z),
-        e2.x, e2.y, e2.z, -(e2.x*o.x + e2.y*o.y + e2.z*o.z),
-        e3.x, e3.y, e3.z, -(e3.x*o.x + e3.y*o.y + e3.z*o.z),
-        0, 0, 0, 1
+        .{e1.x, e1.y, e1.z, -(e1.x*o.x + e1.y*o.y + e1.z*o.z)},
+        .{e2.x, e2.y, e2.z, -(e2.x*o.x + e2.y*o.y + e2.z*o.z)},
+        .{e3.x, e3.y, e3.z, -(e3.x*o.x + e3.y*o.y + e3.z*o.z)},
+        .{0, 0, 0, 1}
     });
 }
 
@@ -265,10 +257,10 @@ pub fn projectionTransform(l: f32, r: f32, b: f32, t: f32, n: f32, f: f32) Matri
     var dZdWc: f32 = -(2 * f * n) / (f - n);
     var dWdZc: f32 = -1;
     return Matrix4f.initArray(.{
-        dXdXc, 0, dXdZc, 0,
-        0, dYdYc, dYdZc, 0,
-        0, 0, dZdZc, dZdWc,
-        0, 0, dWdZc, 0
+        .{dXdXc, 0, dXdZc, 0},
+        .{0, dYdYc, dYdZc, 0},
+        .{0, 0, dZdZc, dZdWc},
+        .{0, 0, dWdZc, 0}
     });
 }
 
@@ -283,10 +275,10 @@ test "vector3 create calc norm" {
 test "matrix4f from array" {
     var m = Matrix4f.initArray(
         .{
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0,
+            [_]f32{1.0, 0.0, 0.0, 0.0},
+            [_]f32{0.0, 1.0, 0.0, 0.0},
+            [_]f32{0.0, 0.0, 1.0, 0.0},
+            [_]f32{0.0, 0.0, 0.0, 1.0}
         }
     );
     try std.testing.expect(m.data[0] == 1.0);
@@ -323,24 +315,24 @@ test "vector subtract" {
 
 test "matrix multiply" {
     var m1 = Matrix4f.initArray(.{
-        1.0, 2.0, 3.0, 4.0,
-        5.0, 6.0, -7.0, 8.0,
-        -9.0, 10.0, 11.0, 12.0,
-        13.0, -14.0, 15.0, 16.0
+        .{1.0, 2.0, 3.0, 4.0},
+        .{5.0, 6.0, -7.0, 8.0},
+        .{-9.0, 10.0, 11.0, 12.0},
+        .{13.0, -14.0, 15.0, 16.0}
     });
     var m2 = Matrix4f.initArray(.{
-        3.0, 1.0, 4.0, 3.0,
-        6.0, 5.0, 8.0, -7.0,
-        10.0, 11.0, 9.0, 12.0,
-        16.0, 15.0, -14.0, 13.0
+        .{3.0, 1.0, 4.0, 3.0},
+        .{6.0, 5.0, 8.0, -7.0},
+        .{10.0, 11.0, 9.0, 12.0},
+        .{16.0, 15.0, -14.0, 13.0}
     });   
     var m3 = multiply(m1, m2);
 
-    var expected = [_]f32{
-        109.0,  104.0,   -9.0,   77.0,
-        109.0,   78.0, -107.0,   -7.0,
-        335.0,  342.0,  -25.0,  191.0,
-        361.0,  348.0, -149.0,  525.0
+    var expected = [_][4]f32{
+        .{109.0,  104.0,   -9.0,   77.0},
+        .{109.0,   78.0, -107.0,   -7.0},
+        .{335.0,  342.0,  -25.0,  191.0},
+        .{361.0,  348.0, -149.0,  525.0}
     };
 
     for (expected) |_, i| {
