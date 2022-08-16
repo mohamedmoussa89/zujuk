@@ -2,7 +2,7 @@ const std = @import("std");
 const gl = @import("gl.zig");
 const glfw = @import("glfw");
 const math = @import("math.zig");
-const magic = @import("magic.zig");
+const util = @import("utility.zig");
 
 const CSys = math.CSys;
 const Point3f = math.Point3f;
@@ -196,7 +196,7 @@ pub const PointScene  = struct {
 };
 
 pub fn createPointCube(scene: *PointScene, origin: Point3f, dx: f32, dy: f32, dz: f32, layers: u32) !void {
-    var topLeft = Vector3f.init(origin.x() - dx/2, origin.y() - dy/2, origin.z() - dz/2);
+    var topLeft = Vector3f.init(origin.x - dx/2, origin.y - dy/2, origin.z - dz/2);
     var divisions = @intToFloat(f32, layers - 1);
     var delta = Vector3f.init(dx / divisions, dy / divisions, dz / divisions);    
     {var k: u32 = 0; while(k < layers):(k += 1){
@@ -213,20 +213,20 @@ pub fn createPointCube(scene: *PointScene, origin: Point3f, dx: f32, dy: f32, dz
 }
 
 pub fn renderPointScene(buffer: *PixelBuffer, camera: Camera, pointScene: PointScene) void {
-    magic.escape(camera);
+    util.escape(camera);
     var transform = camera.totalTransform;
 
     for (pointScene.points.items) |p|{
         var q = math.transform(transform, p);
         var outOfBounds = 
-            q.x() <= -1 or q.x() >= 1 or
-            q.y() <= -1 or q.y() >= 1 or
-            q.z() <= -1 or q.z() >= 1;
+            q.x <= -1 or q.x >= 1 or
+            q.y <= -1 or q.y >= 1 or
+            q.z <= -1 or q.z >= 1;
         if (outOfBounds){
             continue;
         }        
-        var i = @floatToInt(u32, 0.5*(q.x() + 1.0) * @intToFloat(f32, buffer.width));
-        var j = @floatToInt(u32, 0.5*(q.y() + 1.0) * @intToFloat(f32, buffer.height));
+        var i = @floatToInt(u32, 0.5*(q.x + 1.0) * @intToFloat(f32, buffer.width));
+        var j = @floatToInt(u32, 0.5*(q.y + 1.0) * @intToFloat(f32, buffer.height));
         var colour = ColourRGBA.FromRGB(255, 255, 255, 255);
         buffer.set(i, j, colour);
     }

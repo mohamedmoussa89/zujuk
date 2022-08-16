@@ -1,4 +1,5 @@
 const std = @import("std");
+const util = @import("utility.zig");
 
 const Vector2i = struct {
     data: [2]u32,
@@ -13,45 +14,29 @@ const Vector2i = struct {
 };
 
 pub const Point3f = struct {
-    data: [3]f32,
+    const Self = @This();
 
-    pub fn init(x_: f32, y_: f32, z_: f32) Point3f {
+    x: f32,
+    y: f32,
+    z: f32,
+    
+    pub fn init(x: f32, y: f32, z: f32) Point3f {
         return Point3f {
-            .data = [3]f32{x_, y_, z_}
+            .x = x,
+            .y = y,
+            .z = z
         };
     }
 
-    pub fn initZero() Point3f {
-        return Point3f {
-            .data = [3]f32{0, 0, 0}
-        };
+    pub fn asSlice(self: *Self) []f32 {        
+        return util.asSlice(f32, self);
     }
 
-    pub fn get(self: Point3f, i: u32) f32 {
-        return self.data[i];
+    pub fn asConstSlice(self: *const Self) []const f32 {        
+        return util.asConstSlice(f32, self);
     }
 
-    pub fn set(self: *Point3f, i: u32, value: f32) void {
-        self.data[i] = value;
-    }
-
-    pub fn add(self: *Point3f, i: u32, value: f32) void {
-        self.data[i] += value;
-    }
-
-    pub fn x(self: Point3f) f32 {
-        return self.data[0];
-    }
-
-    pub fn y(self: Point3f) f32 {
-        return self.data[1];
-    }
-
-    pub fn z(self: Point3f) f32 {
-        return self.data[2];
-    }  
-
-    pub const zero = Point3f {.data = .{0} ** 3 };    
+    pub const zero = Point3f {.x = 0, .y = 0, .z = 0};    
         
 };
 
@@ -98,7 +83,7 @@ pub const Vector3f = struct {
 
     pub fn z(self: Vector3f) f32 {
         return self.data[2];
-    }  
+    }
 
     pub const zero = Vector3f {.data = .{0} ** 3 };    
     pub const unitX = Vector3f {.data = [3]f32{1.0, 0.0, 0.0 }};   
@@ -215,9 +200,9 @@ pub fn dot(a: Vector3f, b: Vector3f) f32 {
 
 pub fn subtract(a: Point3f, b: Point3f) Vector3f {
     return Vector3f.init(
-        a.x() - b.x(),
-        a.y() - b.y(),
-        a.z() - b.z()
+        a.x - b.x,
+        a.y - b.y,
+        a.z - b.z
     );
 }
 
@@ -245,21 +230,24 @@ pub fn transform(mat: Matrix4f, entity: anytype) @TypeOf(entity){
 }
 
 pub fn transformPoint3f(mat: Matrix4f, point: Point3f) Point3f {
-    var result = Point3f.initZero();
+    var result = Point3f.zero;
+
+    var p = point.asConstSlice();
+    var r = result.asSlice();
 
     // get w component
     var w = mat.get(3, 3);
     {var j: u32 = 0; while (j < 3) : (j += 1){
-        w += mat.get(3, j) * point.get(j);
+        w += mat.get(3, j) * p[j];
     }}
 
     // multiply out and scale by w to get equivalent Euclidean point
     {var i: u32 = 0; while (i < 3) : (i += 1){
-        var tmp = mat.get(i, 3);
+        r[i] = mat.get(i, 3);
         {var j: u32 = 0; while (j < 3) : (j +=1){
-            tmp += mat.get(i,j) * point.get(j);
+            r[i] += mat.get(i,j) * p[j];
         }}
-        result.set(i, tmp/w);
+        r[i] /= w;
     }}
 
     return result;
@@ -274,11 +262,11 @@ pub fn transformVector3f(mat: Matrix4f, vector: Vector3f) Vector3f {
     }}
 }
 
-pub fn globalToLocalTransform(o: Point3f, e1: Vector3f, e2: Vector3f, e3: Vector3f) Matrix4f {
+pub fn globalToLocalTransform(o: Point3f, e1: Vector3f, e2: Vector3f, e3: Vector3f) Matrix4f {    
     return Matrix4f.initArray(.{
-        e1.x(), e1.y(), e1.z(), -(e1.x()*o.x() + e1.y()*o.y() + e1.z()*o.z()),
-        e2.x(), e2.y(), e2.z(), -(e2.x()*o.x() + e2.y()*o.y() + e2.z()*o.z()),
-        e3.x(), e3.y(), e3.z(), -(e3.x()*o.x() + e3.y()*o.y() + e3.z()*o.z()),
+        e1.x(), e1.y(), e1.z(), -(e1.x()*o.x + e1.y()*o.y + e1.z()*o.z),
+        e2.x(), e2.y(), e2.z(), -(e2.x()*o.x + e2.y()*o.y + e2.z()*o.z),
+        e3.x(), e3.y(), e3.z(), -(e3.x()*o.x + e3.y()*o.y + e3.z()*o.z),
         0, 0, 0, 1
     });
 }
