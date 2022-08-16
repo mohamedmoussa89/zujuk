@@ -17,7 +17,7 @@ pub fn initWindow() !glfw.Window {
         .context_version_minor = 3, 
         .resizable = false
     };
-    const window = try glfw.Window.create(640, 480, "Hello, mach-glfw!", null, null, hints);
+    const window = try glfw.Window.create(800, 600, "zujuk", null, null, hints);
 
     try glfw.makeContextCurrent(window);
 
@@ -102,12 +102,77 @@ pub const PixelBuffer = struct {
 
 
 pub const ColourRGBA = struct {
-    value: u32,
+    const Self = @This();
 
-    pub fn FromRGB(r: u8, g: u8, b: u8, a: u8) ColourRGBA {
+    value: u32,
+    
+    pub fn initRGBA(r: u8, g: u8, b: u8, a: u8) ColourRGBA {
         return ColourRGBA {
             .value = (@intCast(u32, r) << 0) | (@intCast(u32, g) << 8) | (@intCast(u32, b) << 16) | (@intCast(u32, a) << 24)
         };
+    }
+
+    pub fn initMonochrome(x: u8, a: u8) ColourRGBA {
+        return ColourRGBA.initRGBA(x, x, x, a);
+    }
+
+    pub fn getRGBA(self: Self, r: *u8, g: *u8, b: *u8, a: *u8) void {        
+        var v = self.value;
+        r.* = @truncate(u8, (v & 0x000000FF) >> 0);
+        g.* = @truncate(u8, (v & 0x0000FF00) >> 8);
+        b.* = @truncate(u8, (v & 0x00FF0000) >> 16);
+        a.* = @truncate(u8, (v & 0xFF000000) >> 24);        
+    }
+
+    pub fn subtract(lhs: Self, rhs: Self) ColourRGBA {
+        var xr: u8 = undefined; var yr: u8 = undefined;
+        var xg: u8 = undefined; var yg: u8 = undefined;
+        var xb: u8 = undefined; var yb: u8 = undefined;
+        var xa: u8 = undefined; var ya: u8 = undefined;                                
+        lhs.getRGBA(&xr, &xg, &xb, &xa);
+        rhs.getRGBA(&yr, &yg, &yb, &ya);
+
+        var r: u8 = undefined; 
+        if (@subWithOverflow(u8, xr, yr, &r)){
+            r = 0;
+        }
+
+        var g: u8 = undefined; 
+        if (@subWithOverflow(u8, xg, yg, &g)){
+            g = 0;
+        }
+
+        var b: u8 = undefined; 
+        if (@subWithOverflow(u8, xb, yb, &b)){
+            b = 0;
+        }
+
+        var a: u8 = undefined; 
+        if (@subWithOverflow(u8, xa, ya, &a)){
+            a = 0;
+        }
+
+        return ColourRGBA.initRGBA(r, g, b, a);
+    }
+
+    pub fn interpolate(lhs: Self, rhs: Self, ratioLhs: f32) ColourRGBA {
+        std.debug.assert(ratioLhs <= 1.0 and ratioLhs >= 0.0);
+
+        var ratioRhs = 1 - ratioLhs;
+
+        var xr: u8 = undefined; var yr: u8 = undefined;
+        var xg: u8 = undefined; var yg: u8 = undefined;
+        var xb: u8 = undefined; var yb: u8 = undefined;
+        var xa: u8 = undefined; var ya: u8 = undefined;                                
+        lhs.getRGBA(&xr, &xg, &xb, &xa);
+        rhs.getRGBA(&yr, &yg, &yb, &ya);
+
+        var r = @floatToInt(u8, @intToFloat(f32, xr)*ratioLhs + @intToFloat(f32, yr)*ratioRhs);
+        var b = @floatToInt(u8, @intToFloat(f32, xb)*ratioLhs + @intToFloat(f32, yb)*ratioRhs);
+        var g = @floatToInt(u8, @intToFloat(f32, xg)*ratioLhs + @intToFloat(f32, yg)*ratioRhs);
+        var a = @floatToInt(u8, @intToFloat(f32, xa)*ratioLhs + @intToFloat(f32, ya)*ratioRhs);
+
+        return ColourRGBA.initRGBA(r, g, b, a);
     }
 };
 
@@ -212,22 +277,37 @@ pub fn createPointCube(scene: *PointScene, origin: Point3f, dx: f32, dy: f32, dz
     }}
 }
 
-pub fn renderPointScene(buffer: *PixelBuffer, camera: Camera, pointScene: PointScene) void {
-    util.escape(camera);
+pub fn renderPointScene(buffer: *PixelBuffer, camera: Camera, pointScene: PointScene, baseColour: ColourRGBA) void {
     var transform = camera.totalTransform;
 
+    var bright = baseColour;
+    var dark = ColourRGBA.subtract(bright, ColourRGBA.initMonochrome(255, 0));
+
+    var n = -camera.near;
+    var f = -camera.far;
+
     for (pointScene.points.items) |p|{
-        var q = math.transform(transform, p);
+        var q = math.transform(transform, p);        
         var outOfBounds = 
             q.x <= -1 or q.x >= 1 or
             q.y <= -1 or q.y >= 1 or
             q.z <= -1 or q.z >= 1;
         if (outOfBounds){
             continue;
-        }        
+        }      
+
+        var depth = -(-2*n*f)/(q.z*(f - n) - n - f);
+        var depthRatio = (depth+n)/(n-f);
+
         var i = @floatToInt(u32, 0.5*(q.x + 1.0) * @intToFloat(f32, buffer.width));
         var j = @floatToInt(u32, 0.5*(q.y + 1.0) * @intToFloat(f32, buffer.height));
-        var colour = ColourRGBA.FromRGB(255, 255, 255, 255);
+    
+        var colour = ColourRGBA.interpolate(dark, bright, depthRatio);
+        
         buffer.set(i, j, colour);
+        buffer.set(i-1, j, colour);        
+        buffer.set(i+1, j, colour);
+        buffer.set(i, j-1, colour);
+        buffer.set(i, j+1, colour);
     }
 }

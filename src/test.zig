@@ -6,6 +6,12 @@ const Double3 = struct {
     z: f32    
 };
 
+const PackedDouble3 = extern struct {
+    x: f32,
+    y: f32,
+    z: f32 
+};
+
 fn asArray(x: Double3) [3]f32 {
     return @bitCast([3]f32, x);
 }
@@ -28,6 +34,10 @@ fn sum(x: Double3) f32 {
 }
 
 test "cast to array" {
+    //var xp: PackedDouble3 align(4) = PackedDouble3 {.x = 1, .y = 2, .z = 3};
+    @compileLog("@alignOf(Double3) = ", @alignOf(Double3));
+    @compileLog("@allignOf(PackedDouble3) = ", @alignOf(PackedDouble3));
+
     var x = Double3 {.x = 1, .y = 2, .z = 3};
     var y = asSlice(&x);
     try std.testing.expectApproxEqAbs(@as(f32, 1.0), y[0], 1e-6);
