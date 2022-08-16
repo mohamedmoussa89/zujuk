@@ -203,9 +203,9 @@ pub fn createPointCube(scene: *PointScene, origin: Point3f, dx: f32, dy: f32, dz
         {var j: u32 = 0; while(j < layers):(j += 1){
             {var i: u32 = 0; while(i < layers):(i += 1){
                 try scene.addPoint(Point3f.init(
-                    topLeft.x() + delta.x() * @intToFloat(f32, i),
-                    topLeft.y() + delta.y() * @intToFloat(f32, j),
-                    topLeft.z() + delta.z() * @intToFloat(f32, k),
+                    topLeft.x + delta.x * @intToFloat(f32, i),
+                    topLeft.y + delta.y * @intToFloat(f32, j),
+                    topLeft.z + delta.z * @intToFloat(f32, k),
                 ));
             }}
         }}

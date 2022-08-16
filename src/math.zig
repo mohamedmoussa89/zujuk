@@ -28,10 +28,14 @@ pub const Point3f = struct {
         };
     }
 
+    /// Returns view of Point3f as a slice
+    /// No copy is made
     pub fn asSlice(self: *Self) []f32 {        
         return util.asSlice(f32, self);
     }
 
+    /// Returns view of Point3f as a const slice
+    /// No copy is made
     pub fn asConstSlice(self: *const Self) []const f32 {        
         return util.asConstSlice(f32, self);
     }
@@ -41,54 +45,32 @@ pub const Point3f = struct {
 };
 
 pub const Vector3f = struct {    
-    data: [3]f32,
+    const Self = @This();
 
-    pub fn init(x_: f32, y_: f32, z_: f32) Vector3f {
+    x: f32,
+    y: f32,
+    z: f32,
+
+    pub fn init(x: f32, y: f32, z: f32) Vector3f {
         return Vector3f {
-            .data = [3]f32{x_, y_, z_}
+            .x = x, .y = y, .z = z
         };
     }
 
-    pub fn initArray(array: [3]f32) Vector3f {
-        return Vector3f {
-            .data = array
-        };
-    }
-    
-    pub fn initZero() Vector3f {
-        return Vector3f {
-            .data = [3]f32{0, 0, 0}
-        };
+    /// Returns view of Vector3f as a slice    
+    pub fn asSlice(self: *Self) []f32 {        
+        return util.asSlice(f32, self);
     }
 
-    pub fn get(self: Vector3f, i: u32) f32 {
-        return self.data[i];
+    /// Returns view of Vector3f as a const slice        
+    pub fn asConstSlice(self: *const Self) []const f32 {        
+        return util.asConstSlice(f32, self);
     }
 
-    pub fn set(self: Vector3f, i: u32, value: f32) f32 {
-        self.data[i] = value;
-    }
-
-    pub fn add(self: Vector3f, i: u32, value: f32) f32 {
-        self.data[i] += value;
-    }
-
-    pub fn x(self: Vector3f) f32 {
-        return self.data[0];
-    }
-
-    pub fn y(self: Vector3f) f32 {
-        return self.data[1];
-    }
-
-    pub fn z(self: Vector3f) f32 {
-        return self.data[2];
-    }
-
-    pub const zero = Vector3f {.data = .{0} ** 3 };    
-    pub const unitX = Vector3f {.data = [3]f32{1.0, 0.0, 0.0 }};   
-    pub const unitY = Vector3f {.data = [3]f32{0.0, 1.0, 0.0 }};   
-    pub const unitZ = Vector3f {.data = [3]f32{0.0, 0.0, 1.0 }};   
+    pub const zero = Vector3f {.x = 0, .y = 0, .z = 0};    
+    pub const unitX = Vector3f {.x = 1, .y = 0, .z = 0};   
+    pub const unitY = Vector3f {.x = 0, .y = 1, .z = 0};   
+    pub const unitZ = Vector3f {.x = 0, .y = 0, .z = 1};   
 
 };
 
@@ -174,7 +156,7 @@ pub const CSys = struct {
 };
 
 pub fn negate(v: Vector3f) Vector3f {
-    return Vector3f.init(-v.x(), -v.y(), -v.z());
+    return Vector3f.init(-v.x, -v.y, -v.z);
 }
 
 pub fn norm2(v: Vector3f) f32{  
@@ -183,19 +165,19 @@ pub fn norm2(v: Vector3f) f32{
 
 pub fn normalise(v: Vector3f) Vector3f {
     var norm = norm2(v);
-    return Vector3f.init(v.x()/norm, v.y()/norm, v.z()/norm);
+    return Vector3f.init(v.x/norm, v.y/norm, v.z/norm);
 }
 
 pub fn cross(a: Vector3f, b: Vector3f) Vector3f {
     return Vector3f.init(
-        a.y() * b.z() - b.y() * a.z(),
-        a.z() * b.x() - b.z() * a.x(),
-        a.x() * b.y() - b.x() * a.y()
+        a.y * b.z - b.y * a.z,
+        a.z * b.x - b.z * a.x,
+        a.x * b.y - b.x * a.y
     );
 }
 
 pub fn dot(a: Vector3f, b: Vector3f) f32 {
-    return a.x()*b.x() + a.y()*b.y() + a.z()*b.z();
+    return a.x*b.x + a.y*b.y + a.z*b.z;
 }
 
 pub fn subtract(a: Point3f, b: Point3f) Vector3f {
@@ -233,7 +215,7 @@ pub fn transformPoint3f(mat: Matrix4f, point: Point3f) Point3f {
     var result = Point3f.zero;
 
     var p = point.asConstSlice();
-    var r = result.asSlice();
+    var r = result.asSlice();    
 
     // get w component
     var w = mat.get(3, 3);
@@ -253,20 +235,23 @@ pub fn transformPoint3f(mat: Matrix4f, point: Point3f) Point3f {
     return result;
 }
 
-pub fn transformVector3f(mat: Matrix4f, vector: Vector3f) Vector3f {
-    var result = Vector3f.initZero();
+pub fn transformVector3f(mat: Matrix4f, vector: Vector3f) Vector3f {    
+    var result = Vector3f.zero;
+    var v = vector.asConstSlice();
+    var r = result.asSlice();
     {var i: u32 = 0; while (i < 3):(i += 1){
         {var j: u32 = 0; while (j < 3):(j += 1){
-            result.add(i, mat.get(i, j)*vector.get(j));
+            r[i] += mat.get(i, j) * v[j];            
         }}
     }}
+    return result;
 }
 
 pub fn globalToLocalTransform(o: Point3f, e1: Vector3f, e2: Vector3f, e3: Vector3f) Matrix4f {    
     return Matrix4f.initArray(.{
-        e1.x(), e1.y(), e1.z(), -(e1.x()*o.x + e1.y()*o.y + e1.z()*o.z),
-        e2.x(), e2.y(), e2.z(), -(e2.x()*o.x + e2.y()*o.y + e2.z()*o.z),
-        e3.x(), e3.y(), e3.z(), -(e3.x()*o.x + e3.y()*o.y + e3.z()*o.z),
+        e1.x, e1.y, e1.z, -(e1.x*o.x + e1.y*o.y + e1.z*o.z),
+        e2.x, e2.y, e2.z, -(e2.x*o.x + e2.y*o.y + e2.z*o.z),
+        e3.x, e3.y, e3.z, -(e3.x*o.x + e3.y*o.y + e3.z*o.z),
         0, 0, 0, 1
     });
 }
@@ -315,9 +300,9 @@ test "cross product" {
     var a = Vector3f.init(0.0, 0.0, 1.0);
     var b = Vector3f.init(1.0, 0.0, 0.0);
     var c = cross(a, b);    
-    try std.testing.expectApproxEqAbs(@as(f32, 0.0), c.x(), 1e-10);
-    try std.testing.expectApproxEqAbs(@as(f32, 1.0), c.y(), 1e-10);
-    try std.testing.expectApproxEqAbs(@as(f32, 0.0), c.z(), 1e-10);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.0), c.x, 1e-10);
+    try std.testing.expectApproxEqAbs(@as(f32, 1.0), c.y, 1e-10);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.0), c.z, 1e-10);
 }
 
 test "dot product" {
@@ -331,9 +316,9 @@ test "vector subtract" {
     var p1 = Point3f.init(1.0, 2.0, 3.0);
     var p2 = Point3f.init(9.0, 7.0, 5.0);
     var v = subtract(p2, p1);
-    try std.testing.expectApproxEqAbs(@as(f32, 8), v.get(0), 1e-6);
-    try std.testing.expectApproxEqAbs(@as(f32, 5), v.get(1), 1e-6);
-    try std.testing.expectApproxEqAbs(@as(f32, 2), v.get(2), 1e-6);
+    try std.testing.expectApproxEqAbs(@as(f32, 8), v.x, 1e-6);
+    try std.testing.expectApproxEqAbs(@as(f32, 5), v.y, 1e-6);
+    try std.testing.expectApproxEqAbs(@as(f32, 2), v.z, 1e-6);
 }
 
 test "matrix multiply" {
