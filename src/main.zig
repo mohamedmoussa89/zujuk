@@ -3,6 +3,7 @@ const gl = @import("gl.zig");
 const glfw = @import("glfw");
 const math = @import("math.zig");
 const graphics = @import("graphics.zig");
+const system = @import("system.zig");
 
 const PixelBuffer = graphics.PixelBuffer;
 const ColourRGBA = graphics.ColourRGBA;
@@ -11,6 +12,8 @@ const PointScene = graphics.PointScene;
 
 const Vector3f = math.Vector3f;
 const Point3f = math.Point3f;
+
+const TimeAccumulator = system.TimeAccumulator;
 
 pub fn main() !u8 {
     // var reader = std.io.getStdIn().reader();
@@ -35,9 +38,12 @@ pub fn main() !u8 {
 
     try graphics.createPointCube(&scene, Point3f.zero, 100.0, 100.0, 100.0, 9);
 
-    //glfw.swapInterval(0);
+    var perfTimeAccum = try TimeAccumulator.init();
+    
+    try glfw.swapInterval(0);
     var gold = ColourRGBA.initRGBA(255, 214, 0, 255);
 
+    var frameCount: u64 = 0;
     while (!window.shouldClose()) {
         try glfw.pollEvents();
         pixelBuffer.clear(ColourRGBA.initRGBA(0, 0, 0, 255));
@@ -46,6 +52,15 @@ pub fn main() !u8 {
 
         try pixelBuffer.copyToPrimaryFrameBuffer();
         try window.swapBuffers();
+
+        frameCount += 1;        
+        var consumedMs = perfTimeAccum.consumeAtleast(1000);
+        if (consumedMs >= 1000){        
+            const frameTime = @intToFloat(f64, consumedMs) / @intToFloat(f64, frameCount);
+            std.debug.print("Frame time = {d:.2}\n", .{frameTime});
+            frameCount = 0;
+        }
+
     }
 
     return 0;
