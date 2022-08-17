@@ -25,7 +25,7 @@ pub const TimeAccumulator = struct {
             self.accumulatedNs -= consumeNs;
             return true;
         }else{
-            return true;
+            return false;
         }
     }
 
