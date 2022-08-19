@@ -15,6 +15,10 @@ const Point3f = math.Point3f;
 
 const TimeAccumulator = system.TimeAccumulator;
 
+fn cameraTarget(angle: f32, radius: f32) Point3f {
+    return Point3f.init(radius*std.math.sin(angle), radius*std.math.cos(angle), 75);
+}
+
 pub fn main() !u8 {
     // var reader = std.io.getStdIn().reader();
     // _ = try reader.readByte();
@@ -32,21 +36,30 @@ pub fn main() !u8 {
     defer scene.deinit();
 
     var camera = Camera.init();
+    var cameraAngle: f32 = 0.0;
+    var cameraRadius: f32 = 150.0;
+
     var aspect = @intToFloat(f32, pixelBuffer.width) / @intToFloat(f32, pixelBuffer.height);
-    camera.setPerspectiveProjection(std.math.pi/2.0, 95, 205, aspect);
-    camera.lookAtTarget(Point3f.init(0, -150, 60), Point3f.zero, Vector3f.unitZ);
+    camera.setPerspectiveProjection(std.math.pi/2.0, 50, 205, aspect);
+    camera.lookAtTarget(cameraTarget(cameraAngle, cameraRadius), Point3f.zero, Vector3f.unitZ);
 
     try graphics.createPointCube(&scene, Point3f.zero, 100.0, 100.0, 100.0, 9);
 
     var perfTimeAccum = try TimeAccumulator.init();
+    var cameraAnimAccum = try TimeAccumulator.init();
     
     try glfw.swapInterval(0);
-    var gold = ColourRGBA.initRGBA(255, 214, 0, 255);
+    var gold = ColourRGBA.initRGBA(0, 255, 0, 255);
 
     var frameCount: u64 = 0;
     while (!window.shouldClose()) {
         try glfw.pollEvents();
         pixelBuffer.clear(ColourRGBA.initRGBA(0, 0, 0, 255));
+
+        while (cameraAnimAccum.consume(20)){
+            cameraAngle += (2.0*std.math.pi / 5000.0) * 20.0;
+            camera.lookAtTarget(cameraTarget(cameraAngle, cameraRadius), Point3f.zero, Vector3f.unitZ);
+        }
 
         graphics.renderPointScene(&pixelBuffer, camera, scene, gold);
 

@@ -14,7 +14,7 @@ pub const TimeAccumulator = struct {
         };        
     }
 
-    pub fn consume(self: *TimeAccumulator, consumeMs: u64) true {
+    pub fn consume(self: *TimeAccumulator, consumeMs: u64) bool {
         const consumeNs = consumeMs * std.time.ns_per_ms;     
 
         const currentReadNs = self.timer.read();
