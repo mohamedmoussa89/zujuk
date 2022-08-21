@@ -9,36 +9,6 @@ const Point3f = math.Point3f;
 const Vector3f = math.Vector3f;
 const Matrix4f = math.Matrix4f;
 
-pub fn initWindow() !glfw.Window {
-    try glfw.init(.{});
-
-    var hints = .{
-        .context_version_major = 4, 
-        .context_version_minor = 3, 
-        .resizable = false
-    };
-    const window = try glfw.Window.create(800, 600, "zujuk", null, null, hints);
-
-    try glfw.makeContextCurrent(window);
-
-    const proc: glfw.GLProc = undefined;
-    try gl.load(proc, glGetProcAddress);
-    gl.enable(gl.DEBUG_OUTPUT);
-
-    return window;
-}
-
-fn glGetProcAddress(p: glfw.GLProc, proc: [:0]const u8) ?*const anyopaque {
-    _ = p;
-    return glfw.getProcAddress(proc);
-}
-
-pub fn deinitWindow(window: glfw.Window) void {
-    window.destroy();
-    glfw.terminate();
-
-}
-
 pub const PixelBuffer = struct {
     width: u32,
     height: u32,
@@ -168,8 +138,8 @@ pub const ColourRGBA = struct {
         rhs.getRGBA(&yr, &yg, &yb, &ya);
 
         var r = @floatToInt(u8, @intToFloat(f32, xr)*ratioLhs + @intToFloat(f32, yr)*ratioRhs);
-        var b = @floatToInt(u8, @intToFloat(f32, xb)*ratioLhs + @intToFloat(f32, yb)*ratioRhs);
         var g = @floatToInt(u8, @intToFloat(f32, xg)*ratioLhs + @intToFloat(f32, yg)*ratioRhs);
+        var b = @floatToInt(u8, @intToFloat(f32, xb)*ratioLhs + @intToFloat(f32, yb)*ratioRhs);
         var a = @floatToInt(u8, @intToFloat(f32, xa)*ratioLhs + @intToFloat(f32, ya)*ratioRhs);
 
         return ColourRGBA.initRGBA(r, g, b, a);

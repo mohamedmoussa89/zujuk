@@ -14,20 +14,18 @@ const Vector3f = math.Vector3f;
 const Point3f = math.Point3f;
 
 const TimeAccumulator = system.TimeAccumulator;
+const EventQueue = system.EventQueue;
 
 fn cameraTarget(angle: f32, radius: f32) Point3f {
     return Point3f.init(radius*std.math.sin(angle), radius*std.math.cos(angle), 75);
 }
 
 pub fn main() !u8 {
-    // var reader = std.io.getStdIn().reader();
-    // _ = try reader.readByte();
-    
-    var window = try graphics.initWindow();
-    defer graphics.deinitWindow(window);
-    
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
+
+    var window = try system.Window.init(allocator, 800, 600, "zujuk");
+    defer window.deinit();    
 
     var pixelBuffer = try PixelBuffer.init(allocator, 800, 600);
     defer pixelBuffer.deinit();
