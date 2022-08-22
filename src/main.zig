@@ -69,12 +69,16 @@ pub fn main() !u8 {
                     }
                 },
 
-                EventType.mouseEvent => |mouseEvent| {
-                    if (mouseEvent.action == glfw.Action.press){
-                        std.debug.print("CLICK {any}\n", .{mouseEvent.button});
-                    }else if (mouseEvent.action == glfw.Action.release){
-                        std.debug.print("RELEASE {any}\n", .{mouseEvent.button});
+                EventType.mouseButtonEvent => |mouseButtonEvent| {
+                    if (mouseButtonEvent.action == glfw.Action.press){
+                        std.debug.print("CLICK {any}\n", .{mouseButtonEvent.button});
+                    }else if (mouseButtonEvent.action == glfw.Action.release){
+                        std.debug.print("RELEASE {any}\n", .{mouseButtonEvent.button});
                     }
+                },
+
+                EventType.mouseMoveEvent => |mouseMoveEvent| {
+                    std.debug.print("MOUSE MOVE {any} {any}\n", .{mouseMoveEvent.x, mouseMoveEvent.y});
                 }
             }
         }

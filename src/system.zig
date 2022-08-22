@@ -46,7 +46,8 @@ pub const Window = struct {
 
         // hook GLFW event callbacks
         glfwWindow.setKeyCallback(EventQueue.enqueueKeyEvent);
-        glfwWindow.setMouseButtonCallback(EventQueue.enqueueMouseEvent);
+        glfwWindow.setMouseButtonCallback(EventQueue.enqueueMouseButtonEvent);
+        glfwWindow.setCursorPosCallback(EventQueue.enqueueMouseMoveEvent);
 
         return Window {
             .data = data
@@ -81,12 +82,14 @@ pub const Window = struct {
 
 pub const EventType = enum(u8) {
     keyEvent,
-    mouseEvent
+    mouseButtonEvent,
+    mouseMoveEvent
 };
 
 pub const Event = union(EventType){
     keyEvent: KeyEvent,
-    mouseEvent: MouseEvent
+    mouseButtonEvent: MouseButtonEvent,
+    mouseMoveEvent: MouseMoveEvent
 };
 
 pub const KeyEvent = struct {        
@@ -96,10 +99,15 @@ pub const KeyEvent = struct {
     mods: glfw.Mods
 };   
 
-pub const MouseEvent = struct {
+pub const MouseButtonEvent = struct {
     button: glfw.MouseButton, 
     action: glfw.Action, 
     mods: glfw.Mods
+};
+
+pub const MouseMoveEvent = struct {
+    x: f64,
+    y: f64
 };
 
 
@@ -174,16 +182,29 @@ pub const EventQueue = struct {
         });    
     }
 
-    pub fn enqueueMouseEvent(glfwWindow: glfw.Window, button: glfw.MouseButton, action: glfw.Action, mods: glfw.Mods) void {           
+    pub fn enqueueMouseButtonEvent(glfwWindow: glfw.Window, button: glfw.MouseButton, action: glfw.Action, mods: glfw.Mods) void {           
         EventQueue.enqueueEvent( 
             glfwWindow,
             Event {
-                .mouseEvent = MouseEvent {
-                .button = button,                
-                .action = action,
-                .mods = mods
+                .mouseButtonEvent = MouseButtonEvent {
+                    .button = button,                
+                    .action = action,
+                    .mods = mods
+                }
             }
-        });                    
+        );                    
+    }
+
+    pub fn enqueueMouseMoveEvent(glfwWindow: glfw.Window, x: f64, y: f64) void {
+        EventQueue.enqueueEvent( 
+            glfwWindow,
+            Event {
+                .mouseMoveEvent = MouseMoveEvent {
+                    .x = x,
+                    .y = y
+                }
+            }
+        );  
     }
 
 };
