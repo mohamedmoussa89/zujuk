@@ -41,6 +41,13 @@ pub const Window = struct {
         try gl.load(proc, glGetProcAddress);
         gl.enable(gl.DEBUG_OUTPUT);        
 
+        // callbacks can retrieve the data struct        
+        glfwWindow.setUserPointer(@ptrCast(*anyopaque, data));
+
+        // hook GLFW event callbacks
+        glfwWindow.setKeyCallback(EventQueue.enqueueKeyEvent);
+        glfwWindow.setMouseButtonCallback(EventQueue.enqueueMouseEvent);
+
         return Window {
             .data = data
         };
@@ -128,11 +135,10 @@ pub const EventQueue = struct {
         return self.count;
     }
 
-
     pub fn dequeue(self: *Self) !Event {
         if (self.count > 0){
-            var event = self.queue.items[self.first];            
-            self.first = (self.first + 1) % self.capacity();            
+            var event = self.queue[self.first];            
+            self.first = (self.first + 1) % self.queue.len;            
             self.count -= 1;
             return event;
         }else{
@@ -140,35 +146,46 @@ pub const EventQueue = struct {
         }        
     }
 
-    pub fn enqueueKeyEvent(self: *Self, glfwWindow: glfw.Window, key: glfw.Key, scanCode: i32, action: glfw.Action, mods: glfw.Mods) void {                
-        _ = glfwWindow;
-        if (self.count < self.queue.len){ 
-            var next = self.first + self.count;
-            self.queue[next] = Event {
-                .keyEvent = KeyEvent {
-                    .key = key,
-                    .scanCode = scanCode,
-                    .action = action,
-                    .mods = mods
-                }
-            }; 
-            self.count += 1;
-        }       
+    fn enqueueEvent(glfwWindow: glfw.Window, event: Event) void {
+        // need to grab event queue from window user data
+        var data = glfwWindow.getUserPointer(Window.Data) orelse return;                
+        var self = &(data.*.eventQueue);
+
+        // full, start over-writing old events
+        if (self.count == self.queue.len){
+            self.first = (self.first + 1) % self.queue.len;
+            self.count -= 1;
+        }                
+
+        var next = (self.first + self.count) % self.queue.len;
+        self.count += 1;
+
+        self.queue[next] = event;        
     }
 
-    pub fn enqueueMouseEvent(self: *Self, glfwWindow: glfw.Window, button: glfw.MouseButton, action: glfw.Action, mods: glfw.Mods) void {           
-        _ = glfwWindow;
-        if (self.count < self.queue.len){ 
-            var next = self.first + self.count;
-            self.queue[next] = Event {
+    pub fn enqueueKeyEvent(glfwWindow: glfw.Window, key: glfw.Key, scanCode: i32, action: glfw.Action, mods: glfw.Mods) void {                                
+        EventQueue.enqueueEvent( 
+            glfwWindow,
+            Event {
+                .keyEvent = KeyEvent {
+                .key = key,
+                .scanCode = scanCode,
+                .action = action,
+                .mods = mods
+            }
+        });    
+    }
+
+    pub fn enqueueMouseEvent(glfwWindow: glfw.Window, button: glfw.MouseButton, action: glfw.Action, mods: glfw.Mods) void {           
+        EventQueue.enqueueEvent( 
+            glfwWindow,
+            Event {
                 .mouseEvent = MouseEvent {
-                    .button = button,                
-                    .action = action,
-                    .mods = mods
-                }
-            };            
-            self.count += 1;
-        }
+                .button = button,                
+                .action = action,
+                .mods = mods
+            }
+        });                    
     }
 
 };
