@@ -32,9 +32,9 @@ pub const Window = struct {
         var eventQueue = try EventQueue.init(allocator, 32);        
 
         var data = try allocator.create(Window.Data);
-        data.*.allocator = allocator;        
-        data.*.glfwWindow = glfwWindow;
-        data.*.eventQueue = eventQueue;
+        data.allocator = allocator;        
+        data.glfwWindow = glfwWindow;
+        data.eventQueue = eventQueue;
         
         try glfw.makeContextCurrent(data.*.glfwWindow);
         const proc: glfw.GLProc = undefined;
@@ -75,7 +75,7 @@ pub const Window = struct {
 
     pub fn getSize(self: Self) u32 {
         return self.*.data.glfwWindow.getSize();
-    }
+    }    
 
 };
 
@@ -103,6 +103,8 @@ pub const MouseEvent = struct {
 };
 
 
+/// Ring buffer for storing events collected by GLFW 
+/// Tightly coupled with Window/GLFW Window 
 pub const EventQueue = struct {
 
     const Self = @This();
@@ -151,16 +153,12 @@ pub const EventQueue = struct {
         var data = glfwWindow.getUserPointer(Window.Data) orelse return;                
         var self = &(data.*.eventQueue);
 
-        // full, start over-writing old events
-        if (self.count == self.queue.len){
-            self.first = (self.first + 1) % self.queue.len;
-            self.count -= 1;
-        }                
-
-        var next = (self.first + self.count) % self.queue.len;
-        self.count += 1;
-
-        self.queue[next] = event;        
+        // if full, stop writing events till old are processed 
+        if (self.count < self.queue.len){
+            var next = (self.first + self.count) % self.queue.len;
+            self.count += 1;
+            self.queue[next] = event;        
+        }        
     }
 
     pub fn enqueueKeyEvent(glfwWindow: glfw.Window, key: glfw.Key, scanCode: i32, action: glfw.Action, mods: glfw.Mods) void {                                
@@ -242,15 +240,23 @@ pub const TimeAccumulator = struct {
 test "event queue" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-
-    var window = glfw.Window.create(640, 480, "Hello, Zig!", null, null, .{}) catch |err| {        
-        std.debug.print("note: failed to create window: {}\n", .{err});
-        return;
-    };
     
-    var eventQueue = try EventQueue.init(allocator, &window, 4);
-    eventQueue.enqueueKeyEvent(window, glfw.Key.a, glfw.Key.getScancode(glfw.Key.a), glfw.Action.press, glfw.Mods {});
-    eventQueue.enqueueKeyEvent(window, glfw.Key.a, glfw.Key.getScancode(glfw.Key.a), glfw.Action.press, glfw.Mods {});
-    eventQueue.enqueueKeyEvent(window, glfw.Key.a, glfw.Key.getScancode(glfw.Key.a), glfw.Action.press, glfw.Mods {});
-    eventQueue.enqueueKeyEvent(window, glfw.Key.a, glfw.Key.getScancode(glfw.Key.a), glfw.Action.press, glfw.Mods {});
+    var window = try Window.init(allocator, 100, 100, "");
+        
+    EventQueue.enqueueKeyEvent(window.data.glfwWindow, glfw.Key.a, try glfw.Key.getScancode(glfw.Key.a), glfw.Action.press, glfw.Mods {});
+    EventQueue.enqueueKeyEvent(window.data.glfwWindow, glfw.Key.b, try glfw.Key.getScancode(glfw.Key.b), glfw.Action.press, glfw.Mods {});
+    EventQueue.enqueueKeyEvent(window.data.glfwWindow, glfw.Key.c, try glfw.Key.getScancode(glfw.Key.c), glfw.Action.press, glfw.Mods {});
+    EventQueue.enqueueKeyEvent(window.data.glfwWindow, glfw.Key.d, try glfw.Key.getScancode(glfw.Key.d), glfw.Action.press, glfw.Mods {});
+    EventQueue.enqueueKeyEvent(window.data.glfwWindow, glfw.Key.e, try glfw.Key.getScancode(glfw.Key.e), glfw.Action.press, glfw.Mods {});
+    EventQueue.enqueueKeyEvent(window.data.glfwWindow, glfw.Key.f, try glfw.Key.getScancode(glfw.Key.f), glfw.Action.press, glfw.Mods {});
+    EventQueue.enqueueKeyEvent(window.data.glfwWindow, glfw.Key.g, try glfw.Key.getScancode(glfw.Key.g), glfw.Action.press, glfw.Mods {});
+    EventQueue.enqueueKeyEvent(window.data.glfwWindow, glfw.Key.h, try glfw.Key.getScancode(glfw.Key.h), glfw.Action.press, glfw.Mods {});
+
+    var eventQueue = &window.data.eventQueue;
+    var event1 = try eventQueue.dequeue();
+    var event2 = try eventQueue.dequeue();
+    
+    try std.testing.expect(event1.keyEvent.key == glfw.Key.a);
+    try std.testing.expect(event2.keyEvent.key == glfw.Key.b);
+    try std.testing.expect(eventQueue.count == 0);
 }
