@@ -1,16 +1,52 @@
 const std = @import("std");
 const util = @import("utility.zig");
 
-const Vector2i = struct {
-    data: [2]u32,
+pub const Vector2i = struct {
+    const Self = @This();
 
-    pub fn i(self: Vector2i) u32 {
-        return self.data[0];
+    i: i32,
+    j: i32,    
+
+    pub fn init(i: i32, j: i32) Self {
+        return Self {
+            .i = i,
+            .j = j
+        };
     }
 
-    pub fn j(self: Vector2i) u32 {
-        return self.data[1];
-    }    
+    pub const zero = Vector2i {.i = 0, .j = 0};
+};
+
+pub const Vector2f = struct {
+    const Self = @This();
+
+    x: f32,
+    y: f32,
+   
+    pub fn init(x: f32, y: f32) Self {
+        return Self {
+            .x = x,
+            .y = y
+        };
+    }
+
+    pub const zero = Vector2f {.x = 0.0, .y = 0.0};
+};
+
+pub const Point2i = struct {
+    const Self = @This();
+
+    i: i32,
+    j: i32,
+
+    pub fn init(i: i32, j: i32) Self {
+        return Self {
+            .i = i,
+            .j = j
+        };
+    }
+
+    pub const zero = Point2i {.i = 0, .j = 0};
 };
 
 pub const Point3f = struct {
@@ -72,6 +108,116 @@ pub const Vector3f = struct {
     pub const unitY = Vector3f {.x = 0, .y = 1, .z = 0};   
     pub const unitZ = Vector3f {.x = 0, .y = 0, .z = 1};   
 
+};
+
+pub const Quaternion = struct {
+    a: f32,     
+    b: f32,     // i
+    c: f32,     // j
+    d: f32,     // k
+
+    const identity: Quaternion = Quaternion {.a = 1, .b = 0, .c = 0, .d = 0};
+
+    pub fn initRotation(v: Vector3f, theta: f32) Quaternion {
+        const c = std.math.cos(theta / 2.0);
+        const s = std.math.sin(theta / 2.0);
+        return Quaternion {
+            .a = c,
+            .b = s * v.x,
+            .c = s * v.y,
+            .d = s * v.z,
+        };
+    }
+
+    pub fn normSqrd(self: Quaternion) f32 {
+        return self.a*self.a + self.b*self.b + self.c*self.c + self.d*self.d;
+    }
+
+    pub fn inverse(self: Quaternion) Quaternion {
+        const n = self.normSqrd();
+        return Quaternion {
+            .a = self.a / n,
+            .b = self.b / n,
+            .c = self.c / n,
+            .d = self.d / n
+        };
+    } 
+
+    pub fn multiplyQQ(q1: Quaternion, q2: Quaternion) Quaternion {
+        const a = q1.a;
+        const b = q1.b;
+        const c = q1.c;
+        const d = q1.d;
+        const r = q2.a;
+        const s = q2.b;
+        const t = q2.c;
+        const u = q2.d;
+        return Quaternion {
+            .a = a*r - b*s - c*t - d*u,
+            .b = b*r + a*s - d*t + c*u,
+            .c = c*r + d*s + a*t - b*u,
+            .d = d*r - c*s + b*t + a*u
+        };
+    }
+
+    pub fn multiplyQVCQ(q: Quaternion, v: Vector3f) Vector3f {
+        const a = q.a;
+        const b = q.b;
+        const c = q.c;
+        const d = q.d;
+        const x = v.x;
+        const y = v.y;
+        const z = v.z;
+        const aa = a*a;
+        const bb = b*b;
+        const cc = c*c;
+        const dd = d*d;
+        return Vector3f {
+            .x = aa*x + bb*x - (cc + dd)*x + a*(-2*d*y + 2*c*z) + 2*b*(c*y + d*z),
+            .y = 2*b*c*x + 2*a*d*x + aa*y - bb*y + cc*y - dd*y - 2*a*b*z + 2*c*d*z,
+            .z = a*(-2*c*x + 2*b*y) + 2*d*(b*x + c*y) + aa*z - (bb + cc - dd)*z
+        };
+    }
+
+    pub fn rotateV(axis: Vector3f, theta: f32, v: Vector3f) Vector3f {
+        const ax = axis.x;
+        const ay = axis.y;
+        const az = axis.z;
+        const x = v.x;
+        const y = v.y;
+        const z = v.z;
+        const c = std.math.cos(theta / 2.0);
+        const s = std.math.sin(theta / 2.0);
+        const cc = c*c;
+        const ss = s*s;
+        const axax = ax*ax;
+        const ayay = ay*ay;
+        const azaz = az*az;
+        return Vector3f {
+            .x = cc*x + 2*c*s*(-(az*y) + ay*z) + ss*(axax*x - (ayay + azaz)*x + 2*ax*(ay*y + az*z)),
+            .y = cc*y - azaz*ss*y + s*(2*ax*ay*s*x - axax*s*y + ayay*s*y - 2*ax*c*z) + 2*az*s*(c*x + ay*s*z),
+            .z = 2*s*(-(ay*c*x) + ax*az*s*x + ax*c*y + ay*az*s*y) + (cc - (axax + ayay - azaz)*ss)*z
+        };
+    }    
+
+    pub fn rotateP(origin: Point3f, axis: Vector3f, theta: f32, p: Point3f) Point3f {
+        const v = subtract(p, origin);  
+        const w = rotateV(axis, theta, v);
+        return Point3f {
+            .x = origin.x + w.x,
+            .y = origin.y + w.y,
+            .z = origin.z + w.z
+        };
+    }
+
+    pub fn rotateCsys(origin: Point3f, axis: Vector3f, theta: f32, csys: CSys) CSys {
+        return CSys.initE1E2(
+            Quaternion.rotateP(origin, axis, theta, csys.origin),
+            Quaternion.rotateV(axis, theta, csys.e1),
+            Quaternion.rotateV(axis, theta, csys.e2)
+        );
+    }
+    
 };
 
 pub const Matrix4f = struct {
@@ -137,17 +283,35 @@ pub const CSys = struct {
 
 };
 
+fn is_vector(comptime T: type) bool {
+    return T == Vector2f or T == Vector2i or T == Vector3f;
+}
+
+pub fn convert(comptime TO: type, obj: anytype) TO {
+    const TI = @TypeOf(obj);
+    if (TI == Vector2i and TO == Vector2f){
+        return convertV2iV2f(obj);
+    }
+    @compileError("Unsupported conversion");
+}
+
+pub fn convertV2iV2f(v: Vector2i) Vector2f {
+    return Vector2f {
+        .x = @intToFloat(f32, v.i),
+        .y = @intToFloat(f32, v.j)
+    };
+}
+
 pub fn negate(v: Vector3f) Vector3f {
     return Vector3f.init(-v.x, -v.y, -v.z);
 }
 
-pub fn norm2(v: Vector3f) f32{  
+pub fn norm(v: anytype) f32 {        
     return std.math.sqrt(dot(v, v));
 }
 
-pub fn normalise(v: Vector3f) Vector3f {
-    var norm = norm2(v);
-    return Vector3f.init(v.x/norm, v.y/norm, v.z/norm);
+pub fn normalise(v: anytype) @TypeOf(v) {        
+    return multiply(v, 1.0/norm(v));    
 }
 
 pub fn cross(a: Vector3f, b: Vector3f) Vector3f {
@@ -158,11 +322,89 @@ pub fn cross(a: Vector3f, b: Vector3f) Vector3f {
     );
 }
 
-pub fn dot(a: Vector3f, b: Vector3f) f32 {
-    return a.x*b.x + a.y*b.y + a.z*b.z;
+pub fn dot(a: anytype, b: @TypeOf(a)) f32 {
+    const T = @TypeOf(a);        
+    if (T == Vector2f){
+       return dotV2f(a, b);
+    }else if (T == Vector3f){
+        return dotV3f(a, b);
+    }
+    @compileError("Unsupported types for dot");
 }
 
-pub fn subtract(a: Point3f, b: Point3f) Vector3f {
+pub fn dotV2f(a: Vector2f, b: Vector2f) f32 {
+     return a.x*b.x + a.y*b.y;
+}
+
+pub fn dotV3f(a: Vector3f, b: Vector3f) f32 {
+     return a.x*b.x + a.y*b.y + a.z*b.z;
+}
+
+pub fn add(a: anytype, b: anytype) Add(@TypeOf(a), @TypeOf(b)) {
+    const TA = @TypeOf(a);
+    const TB = @TypeOf(b);
+    if (TA == Vector3f and TB == Vector3f){
+        return addV3fV3f(a, b);
+    }else if (TA == Point3f and TB == Vector3f){
+        return addP3fV3f(a, b);
+    }else if (TA == Vector3f and TB == Point3f){
+        return addP3fV3f(b, a);
+    }
+}
+
+pub fn Add(TA: type, TB: type) type {
+    if (TA == Vector3f and TB == Vector3f){
+        return Vector3f;
+    }else if ((TA == Vector3f and TB == Point3f) or (TB == Vector3f and TA == Point3f)){
+        return Point3f;
+    }
+}
+
+pub fn addV3fV3f(a: Vector3f, b: Vector3f) Vector3f {
+    return Vector3f.init(
+        a.x + b.x, 
+        a.y + b.y, 
+        a.z + b.z
+    );
+}
+
+pub fn addP3fV3f(a: Point3f, b: Vector3f) Point3f {
+    return Point3f.init(
+        a.x + b.x, 
+        a.y + b.y, 
+        a.z + b.z
+    );
+}
+
+pub fn subtract(a: anytype, b: @TypeOf(a)) Subtract(@TypeOf(a)) {
+    const T = @TypeOf(a);    
+    if (T == Point2i) {
+        return subtractP2iP2i(a, b);
+    }else if (T == Point3f) {
+        return subtractP3fP3f(a, b);
+    }else{
+        @compileError("Unknown types for subtract");
+    }
+}
+
+pub fn Subtract(comptime T: type) type {
+    if (T == Point2i or T == Vector2i){
+        return Vector2i;
+    }else if (T == Point3f or T == Vector3f){
+        return Vector3f;
+    }else{
+        @compileError("Unknown types for subtract");
+    }        
+}
+
+pub fn subtractP2iP2i(a: Point2i, b: Point2i) Vector2i {
+    return Vector2i.init(
+        a.i - b.i,
+        a.j - b.j
+    );    
+}
+
+pub fn subtractP3fP3f(a: Point3f, b: Point3f) Vector3f {
     return Vector3f.init(
         a.x - b.x,
         a.y - b.y,
@@ -170,7 +412,50 @@ pub fn subtract(a: Point3f, b: Point3f) Vector3f {
     );
 }
 
-pub fn multiply(matA: Matrix4f, matB: Matrix4f) Matrix4f{
+pub fn multiply(a: anytype, b: anytype) Multiply(@TypeOf(a), @TypeOf(b)) {
+    const TA = @TypeOf(a);
+    const TB = @TypeOf(b);
+    if (TA == Matrix4f and TB == Matrix4f){
+        return multiplyM4fM4f(a, b);
+    }else if (TA == Vector2f and TB == f32){
+        return multiplyV2ff32(a, b);
+    }else if (TA == f32 and TB == Vector2f){
+        return multiplyV2ff32(b, a);
+    }else if (TA == Vector3f and TB == f32){
+        return multiplyV3ff32(a, b);
+    }else if (TA == f32 and TB == Vector3f){
+        return multiplyV3ff32(b, a);
+    }
+    @compileError("Unsupported types for multiply");
+}
+
+pub fn Multiply(TA: type, TB: type) type {
+    if (TA == Matrix4f and TB == Matrix4f){
+        return Matrix4f;
+    }else if ((TA == Vector2f and TB == f32) or (TA == f32 and TB == Vector2f)){
+        return Vector2f;
+    }else if ((TA == Vector3f and TB == f32) or (TA == f32 and TB == Vector3f)){
+        return Vector3f;
+    }
+    @compileError("Unsupported types for multiply");
+}
+
+pub fn multiplyV2ff32(v: Vector2f, s: f32) Vector2f {
+    return Vector2f {
+        .x = v.x * s,
+        .y = v.y * s
+    };
+}
+
+pub fn multiplyV3ff32(v: Vector3f, s: f32) Vector3f {
+    return Vector3f {
+        .x = v.x * s,
+        .y = v.y * s,
+        .z = v.z * s
+    };
+}
+
+pub fn multiplyM4fM4f(matA: Matrix4f, matB: Matrix4f) Matrix4f {
     var result = Matrix4f.zero;
     
     var r = &result.data;
@@ -248,6 +533,15 @@ pub fn globalToLocalTransform(o: Point3f, e1: Vector3f, e2: Vector3f, e3: Vector
     });
 }
 
+
+/// Maps truncated pyramid from camera space to normalised cube coordinates
+///     l: left coordinate of frustrum at near plane (maps to x = -1)
+///     r: right coordinate of frustrum at near plane (maps to x = 1)
+///     b: bottom coordinate of frustrum at near plane (maps to y = -1)
+///     t: top coordinate of frustrum at near plane (maps to y = 1)
+///     n: distance to near plane (positive number, near plane maps to -1)
+///     f: distance to far plane (positive number, far plane maps to 1)
+/// View space is right-handed while resulting cube is left-handed
 pub fn projectionTransform(l: f32, r: f32, b: f32, t: f32, n: f32, f: f32) Matrix4f {
     var dXdXc: f32 = 2 * n / (r - l);
     var dXdZc: f32 = (r + l) / (r - l);
@@ -267,9 +561,9 @@ pub fn projectionTransform(l: f32, r: f32, b: f32, t: f32, n: f32, f: f32) Matri
 
 test "vector3 create calc norm" {
     var v = Vector3f.init(1, 2, 3);    
-    var norm = norm2(v);
+    var n = norm(v);
     var actual: f32 = std.math.sqrt(1.0*1.0 + 2.0*2.0 + 3.0*3.0);
-    try std.testing.expectApproxEqAbs(actual, norm, 1e-6);
+    try std.testing.expectApproxEqAbs(actual, n, 1e-6);
 }
 
 test "matrix4f from array" {
