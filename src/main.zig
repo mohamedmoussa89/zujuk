@@ -143,7 +143,8 @@ pub fn main() !u8 {
         var consumedMs = perfTimeAccum.consumeAtleast(1000);
         if (consumedMs >= 1000){        
             const frameTime = @intToFloat(f64, consumedMs) / @intToFloat(f64, frameCount);
-            std.debug.print("Frame time = {d:.2}\n", .{frameTime});
+            const fps = 1000.0 / frameTime;
+            std.debug.print("Frame time = {d:.2} ({d:.0} FPS)\n", .{frameTime, fps});
             frameCount = 0;
         }
 
