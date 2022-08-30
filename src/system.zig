@@ -102,7 +102,9 @@ pub const KeyEvent = struct {
 pub const MouseButtonEvent = struct {
     button: glfw.MouseButton, 
     action: glfw.Action, 
-    mods: glfw.Mods
+    mods: glfw.Mods,
+    x: f64,
+    y: f64
 };
 
 pub const MouseMoveEvent = struct {
@@ -156,6 +158,11 @@ pub const EventQueue = struct {
         }        
     }
 
+    pub fn clear(self: *Self) void {
+        self.first = 0;
+        self.count = 0;
+    }
+
     fn enqueueEvent(glfwWindow: glfw.Window, event: Event) void {
         // need to grab event queue from window user data
         var data = glfwWindow.getUserPointer(Window.Data) orelse return;                
@@ -183,16 +190,21 @@ pub const EventQueue = struct {
     }
 
     pub fn enqueueMouseButtonEvent(glfwWindow: glfw.Window, button: glfw.MouseButton, action: glfw.Action, mods: glfw.Mods) void {           
-        EventQueue.enqueueEvent( 
-            glfwWindow,
-            Event {
-                .mouseButtonEvent = MouseButtonEvent {
-                    .button = button,                
-                    .action = action,
-                    .mods = mods
+        var optPos = glfwWindow.getCursorPos() catch null;
+        if (optPos) |pos| {
+            EventQueue.enqueueEvent( 
+                glfwWindow,
+                Event {
+                    .mouseButtonEvent = MouseButtonEvent {
+                        .button = button,                
+                        .action = action,
+                        .mods = mods,
+                        .x = pos.xpos,
+                        .y = pos.ypos
+                    }
                 }
-            }
-        );                    
+            ); 
+        }                          
     }
 
     pub fn enqueueMouseMoveEvent(glfwWindow: glfw.Window, x: f64, y: f64) void {
