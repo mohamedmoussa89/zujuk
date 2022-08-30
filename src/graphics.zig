@@ -5,6 +5,7 @@ const math = @import("math.zig");
 const util = @import("utility.zig");
 
 const CSys = math.CSys;
+const Point2i = math.Point2i;
 const Point3f = math.Point3f;
 const Vector3f = math.Vector3f;
 const Matrix4f = math.Matrix4f;
@@ -152,7 +153,7 @@ pub const Camera = struct {
     aspectRatioWidthHeight: f32,
     near: f32,
     far: f32,
-
+    
     viewTransform: Matrix4f,
     projectionTransform: Matrix4f,
     totalTransform: Matrix4f,
@@ -210,55 +211,82 @@ pub const Camera = struct {
 
 pub const PointScene  = struct {
     const PointList = std.ArrayList(Point3f);
+    const ColourList = std.ArrayList(ColourRGBA);
 
     allocator: std.mem.Allocator,
     points: PointList,
+    colours: ColourList,
 
     pub fn init(allocator: std.mem.Allocator) PointScene {        
         return PointScene {
             .allocator = allocator,
-            .points = PointList.init(allocator)
+            .points = PointList.init(allocator),
+            .colours = ColourList.init(allocator)
         };
     }
 
     pub fn deinit(self: *PointScene) void {
         self.points.deinit();
+        self.colours.deinit();
     }
 
-    pub fn addPoint(self: *PointScene, p: Point3f) !void {
+    pub fn addPoint(self: *PointScene, p: Point3f, colour: ColourRGBA) !void {
         try self.points.append(p);
+        try self.colours.append(colour);
     }
 };
 
-pub fn createPointCube(scene: *PointScene, origin: Point3f, dx: f32, dy: f32, dz: f32, layers: u32) !void {
+pub fn createPointCube(scene: *PointScene, origin: Point3f, dx: f32, dy: f32, dz: f32, layers: u32, colour: ColourRGBA) !void {
     var topLeft = Vector3f.init(origin.x - dx/2, origin.y - dy/2, origin.z - dz/2);
     var divisions = @intToFloat(f32, layers - 1);
     var delta = Vector3f.init(dx / divisions, dy / divisions, dz / divisions);    
     {var k: u32 = 0; while(k < layers):(k += 1){
         {var j: u32 = 0; while(j < layers):(j += 1){
             {var i: u32 = 0; while(i < layers):(i += 1){
-                try scene.addPoint(Point3f.init(
-                    topLeft.x + delta.x * @intToFloat(f32, i),
-                    topLeft.y + delta.y * @intToFloat(f32, j),
-                    topLeft.z + delta.z * @intToFloat(f32, k),
-                ));
+                try scene.addPoint(
+                    Point3f.init(
+                        topLeft.x + delta.x * @intToFloat(f32, i),
+                        topLeft.y + delta.y * @intToFloat(f32, j),
+                        topLeft.z + delta.z * @intToFloat(f32, k)),
+                    colour
+                );
             }}
         }}
     }}
 }
 
-pub fn renderPointScene(buffer: *PixelBuffer, camera: Camera, pointScene: PointScene, baseColour: ColourRGBA) void {
+pub fn convertClipPointToScreenPoint(width: u32, height: u32, q: Point3f) Point2i {
+    return Point2i {
+        .i = @floatToInt(i32, 0.5*(q.x + 1.0) * @intToFloat(f32, width)),
+        .j = @floatToInt(i32, 0.5*(q.y + 1.0) * @intToFloat(f32, height))
+    };
+}
+
+pub fn convertScreenPointToClipPoint(width: u32, height: u32, s: Point2i) Point3f {
+    return Point3f {
+        .x = 2*(@intToFloat(f32, s.i) / @intToFloat(f32, width)) - 1,
+        .y = 2*(@intToFloat(f32, s.j) / @intToFloat(f32, height)) - 1,
+        .z = 0
+    };
+}
+
+pub fn convertClipZToViewZ(near: f32, far: f32, qz: f32) f32 {
+    const n = near;
+    const f = far;
+    return -(-2*n*f)/(qz*(f - n) - n - f);
+}
+
+pub fn renderPointScene(buffer: *PixelBuffer, camera: Camera, pointScene: PointScene) void {
     var transform = camera.totalTransform;
 
-    var bright = baseColour;
-    var dark = ColourRGBA.subtract(bright, ColourRGBA.initMonochrome(255, 0));
+    // var bright = baseColour;
+    // var dark = ColourRGBA.subtract(bright, ColourRGBA.initMonochrome(255, 0));
+    // var n = -camera.near;
+    // var f = -camera.far;
 
-    var n = -camera.near;
-    var f = -camera.far;
-
-    for (pointScene.points.items) |p|{
-        var q = math.transform(transform, p);        
-        var outOfBounds = 
+    for (pointScene.points.items) |p, idx|{        
+        const q = math.transform(transform, p);        
+        const outOfBounds = 
             q.x <= -1 or q.x >= 1 or
             q.y <= -1 or q.y >= 1 or
             q.z <= -1 or q.z >= 1;
@@ -266,14 +294,16 @@ pub fn renderPointScene(buffer: *PixelBuffer, camera: Camera, pointScene: PointS
             continue;
         }      
 
-        var depth = -(-2*n*f)/(q.z*(f - n) - n - f);
-        var depthRatio = (depth+n)/(n-f);
-
-        var i = @floatToInt(u32, 0.5*(q.x + 1.0) * @intToFloat(f32, buffer.width));
-        var j = @floatToInt(u32, 0.5*(q.y + 1.0) * @intToFloat(f32, buffer.height));
-    
-        var colour = ColourRGBA.interpolate(dark, bright, depthRatio);
+        // const depth = convertClipZToViewZ(n, f, q.z);
+        // const depthRatio = (depth+n)/(n-f);
         
+        const sp = convertClipPointToScreenPoint(buffer.width, buffer.height, q);
+        const i = @intCast(u32, sp.i);
+        const j = @intCast(u32, sp.j);
+    
+        // var colour = ColourRGBA.interpolate(dark, bright, depthRatio);
+        
+        const colour = pointScene.colours.items[idx];
         buffer.set(i, j, colour);
         buffer.set(i-1, j, colour);        
         buffer.set(i+1, j, colour);

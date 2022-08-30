@@ -10,8 +10,11 @@ const ColourRGBA = graphics.ColourRGBA;
 const Camera = graphics.Camera;
 const PointScene = graphics.PointScene;
 
-const Vector3f = math.Vector3f;
+const Point2i = math.Point2i;
 const Point3f = math.Point3f;
+const Vector2f = math.Vector2f;
+const Vector3f = math.Vector3f;
+const Quaternion = math.Quaternion;
 
 const TimeAccumulator = system.TimeAccumulator;
 const EventQueue = system.EventQueue;
@@ -35,62 +38,103 @@ pub fn main() !u8 {
 
     var scene = PointScene.init(allocator);
     defer scene.deinit();
-
-    var camera = Camera.init();
-    var cameraAngle: f32 = 0.0;
-    var cameraRadius: f32 = 150.0;
+    
+    // var cameraAngle: f32 = 0.0;
+    // var cameraRadius: f32 = 150.0;
 
     var aspect = @intToFloat(f32, pixelBuffer.width) / @intToFloat(f32, pixelBuffer.height);
-    camera.setPerspectiveProjection(std.math.pi/2.0, 50, 205, aspect);
-    camera.lookAtTarget(cameraTarget(cameraAngle, cameraRadius), Point3f.zero, Vector3f.unitZ);
+    var camera = Camera.init();
+    camera.setPerspectiveProjection(std.math.pi/2.0, 5, 500, aspect);
+    camera.lookAtTarget(Point3f.init(0, 0, 150), Point3f.zero, Vector3f.unitY);
 
-    try graphics.createPointCube(&scene, Point3f.zero, 100.0, 100.0, 100.0, 9);
+    try graphics.createPointCube(&scene, Point3f.zero, 100.0, 100.0, 100.0, 9, ColourRGBA.initRGBA(255, 0, 0, 255));
+    // try scene.addPoint(Point3f.init(50, 50, 0), ColourRGBA.initRGBA(255, 0, 0, 255));
+    // try scene.addPoint(Point3f.init(-50, 50, 0), ColourRGBA.initRGBA(0, 255, 0, 255));
+    // try scene.addPoint(Point3f.init(-50, -50, 0), ColourRGBA.initRGBA(0, 0, 255, 255));
+    // try scene.addPoint(Point3f.init(50, -50, 0), ColourRGBA.initRGBA(255, 255, 0, 255));
 
     var perfTimeAccum = try TimeAccumulator.init();
-    var cameraAnimAccum = try TimeAccumulator.init();
+    //var cameraAnimAccum = try TimeAccumulator.init();
+
+    //var mouseClickInitial: ?Point3f = null;    
+    var cameraRotating = false;
+    var cameraRotationInitialClick: math.Point2i = undefined;
+    var cameraRotationInitialCSys: math.CSys = undefined;    
     
     try glfw.swapInterval(0);
-    var gold = ColourRGBA.initRGBA(0, 255, 0, 255);
+    // var gold = ColourRGBA.initRGBA(0, 255, 0, 255);
 
     var frameCount: u64 = 0;
     while (!window.shouldClose()) {
         try glfw.pollEvents();
         
         var eventQueue = &window.data.eventQueue;
-        while (eventQueue.count > 0){
-            var event = try eventQueue.dequeue();
-            switch (event) {
-                
-                EventType.keyEvent => |keyEvent| {
-                    if (keyEvent.action == glfw.Action.press){
-                        std.debug.print("PRESS {any}\n", .{keyEvent.key});
-                    }else if (keyEvent.action == glfw.Action.release) {
-                        std.debug.print("RELEASE {any}\n", .{keyEvent.key});
-                    }
-                },
 
-                EventType.mouseButtonEvent => |mouseButtonEvent| {
-                    if (mouseButtonEvent.action == glfw.Action.press){
-                        std.debug.print("CLICK {any}\n", .{mouseButtonEvent.button});
-                    }else if (mouseButtonEvent.action == glfw.Action.release){
-                        std.debug.print("RELEASE {any}\n", .{mouseButtonEvent.button});
-                    }
-                },
+        // camera rotation handling
+        {var i: u32 = 0; while (i < eventQueue.count) : (i += 1) {        
+            const event = eventQueue.queue[i];
+            const isLeftButton = event == EventType.mouseButtonEvent and event.mouseButtonEvent.button == glfw.MouseButton.left;
+            const isPress = event == EventType.mouseButtonEvent and event.mouseButtonEvent.action == glfw.Action.press;
+            const isRelease = event == EventType.mouseButtonEvent and event.mouseButtonEvent.action == glfw.Action.release;
+            const isMouseMove = event == EventType.mouseMoveEvent;     
 
-                EventType.mouseMoveEvent => |mouseMoveEvent| {
-                    std.debug.print("MOUSE MOVE {any} {any}\n", .{mouseMoveEvent.x, mouseMoveEvent.y});
+            if (!cameraRotating and isLeftButton and isPress){
+                cameraRotating = true;
+                cameraRotationInitialClick = Point2i{
+                    .i = @floatToInt(i32, event.mouseButtonEvent.x), 
+                    .j = @intCast(i32, pixelBuffer.height) - @floatToInt(i32, event.mouseButtonEvent.y)
+                };                                
+                cameraRotationInitialCSys = camera.csys;       
+
+            }else if (cameraRotating and isMouseMove){     
+                const cameraRotationCurrentClick = Point2i{
+                    .i = @floatToInt(i32, event.mouseMoveEvent.x), 
+                    .j = @intCast(i32, pixelBuffer.height) - @floatToInt(i32, event.mouseMoveEvent.y)
+                };
+
+                const width = @intToFloat(f32, pixelBuffer.width);
+                const height = @intToFloat(f32, pixelBuffer.height);
+
+                const deltai = math.subtract(cameraRotationCurrentClick, cameraRotationInitialClick);                                                            
+                if (deltai.i != 0 or deltai.j != 0){
+                    const delta = math.convert(Vector2f, deltai);
+                    const distance = math.norm(delta); 
+                    const direction = math.multiply(delta, 1.0/distance);
+                    const maxDistance = std.math.sqrt(
+                        std.math.pow(f32, @fabs(direction.x) * width, 2.0) + 
+                        std.math.pow(f32, @fabs(direction.y) * height, 2.0)
+                    );
+                    const theta = distance / maxDistance * (2*std.math.pi);
+                    
+                    // compute rotation angle
+                    const csys = cameraRotationInitialCSys;
+                    const axis = math.normalise(
+                        math.add(
+                            math.multiply(-direction.x, csys.e2), 
+                            math.multiply(direction.y, csys.e1)
+                        )
+                    );
+
+                    // finally, update camera coordinate system
+                    camera.setCoordinateSystem(Quaternion.rotateCsys(Point3f.zero, axis, theta, cameraRotationInitialCSys));  
                 }
-            }
-        }
 
+            }else if (cameraRotating and isLeftButton and isRelease){
+                cameraRotating = false;
+
+            }
+        }}
+
+        eventQueue.clear();    
+        
         pixelBuffer.clear(ColourRGBA.initRGBA(0, 0, 0, 255));
 
-        while (cameraAnimAccum.consume(20)){
-            cameraAngle += (2.0*std.math.pi / 5000.0) * 20.0;
-            camera.lookAtTarget(cameraTarget(cameraAngle, cameraRadius), Point3f.zero, Vector3f.unitZ);
-        }
+        // while (cameraAnimAccum.consume(20)){
+        //     cameraAngle += (2.0*std.math.pi / 5000.0) * 20.0;
+        //     camera.lookAtTarget(cameraTarget(cameraAngle, cameraRadius), Point3f.zero, Vector3f.unitZ);
+        // }
 
-        graphics.renderPointScene(&pixelBuffer, camera, scene, gold);
+        graphics.renderPointScene(&pixelBuffer, camera, scene);
 
         try pixelBuffer.copyToPrimaryFrameBuffer();
         try window.swapBuffers();
