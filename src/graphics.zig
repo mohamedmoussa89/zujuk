@@ -8,8 +8,10 @@ const util = @import("utility.zig");
 const CSys = math.CSys;
 const Point2i = math.Point2i;
 const Point3f = math.Point3f;
+const Vector2f = math.Vector2f;
 const Vector3f = math.Vector3f;
 const Matrix4f = math.Matrix4f;
+const Quaternion = math.Quaternion;
 
 pub const PixelBuffer = struct {
     width: u32,
@@ -231,7 +233,8 @@ pub const MouseCameraControl = struct {
         };
     }
 
-    pub fn handleEvents(self: *Self, events: []system.Event) void {        
+    pub fn handleEvents(self: *Self, events: []system.Event) void {  
+        const EventType = system.EventType;      
         for (events) |event| {     
             const isLeftButton = event == EventType.mouseButtonEvent and event.mouseButtonEvent.button == glfw.MouseButton.left;
             const isPress = event == EventType.mouseButtonEvent and event.mouseButtonEvent.action == glfw.Action.press;
@@ -239,11 +242,11 @@ pub const MouseCameraControl = struct {
             const isMouseMove = event == EventType.mouseMoveEvent;     
 
             if (!self.isRotating and isLeftButton and isPress){
-                self.startCameraRotation(event);    
-            }else if (cameraRotating and isMouseMove){     
-                self.rotateCamera(event);
-            }else if (cameraRotating and isLeftButton and isRelease){
-                endCameraRotation(event);
+                self.startCameraRotation(event.mouseButtonEvent);    
+            }else if (self.isRotating and isMouseMove){     
+                self.rotateCamera(event.mouseMoveEvent);
+            }else if (self.isRotating and isLeftButton and isRelease){
+                self.endCameraRotation(event.mouseButtonEvent);
             }            
         }
     }
@@ -251,20 +254,21 @@ pub const MouseCameraControl = struct {
     fn startCameraRotation(self: *Self, event: system.MouseButtonEvent) void {
         self.isRotating = true;
         self.initialClick = Point2i{
-            .i = @floatToInt(i32, event.mouseButtonEvent.x), 
-            .j = @intCast(i32, pixelBuffer.height) - @floatToInt(i32, event.mouseButtonEvent.y)
+            .i = @floatToInt(i32, event.x), 
+            .j = @intCast(i32, self.viewportHeight) - @floatToInt(i32, event.y)
         };                                
         self.initialCsys = self.camera.csys;   
     }
 
     fn rotateCamera(self: *Self, event: system.MouseMoveEvent) void {
         const currentClick = Point2i{
-            .i = @floatToInt(i32, event.mouseMoveEvent.x), 
-            .j = @intCast(i32, pixelBuffer.height) - @floatToInt(i32, event.mouseMoveEvent.y)
+            .i = @floatToInt(i32, event.x), 
+            .j = @intCast(i32, self.viewportHeight) - @floatToInt(i32, event.y)
         };
 
-        const width = @intToFloat(f32, self.viewPortWidth);
+        const width = @intToFloat(f32, self.viewportWidth);
         const height = @intToFloat(f32, self.viewportHeight);
+        const csys = self.initialCsys;
 
         const deltai = math.subtract(currentClick, self.initialClick);  
         if (deltai.i == 0 and deltai.j == 0)

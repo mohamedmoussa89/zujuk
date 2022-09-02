@@ -352,7 +352,7 @@ pub fn add(a: anytype, b: anytype) Add(@TypeOf(a), @TypeOf(b)) {
     }
 }
 
-pub fn Add(TA: type, TB: type) type {
+pub fn Add(comptime TA: type, comptime TB: type) type {
     if (TA == Vector3f and TB == Vector3f){
         return Vector3f;
     }else if ((TA == Vector3f and TB == Point3f) or (TB == Vector3f and TA == Point3f)){
@@ -429,7 +429,7 @@ pub fn multiply(a: anytype, b: anytype) Multiply(@TypeOf(a), @TypeOf(b)) {
     @compileError("Unsupported types for multiply");
 }
 
-pub fn Multiply(TA: type, TB: type) type {
+pub fn Multiply(comptime TA: type, comptime TB: type) type {
     if (TA == Matrix4f and TB == Matrix4f){
         return Matrix4f;
     }else if ((TA == Vector2f and TB == f32) or (TA == f32 and TB == Vector2f)){
