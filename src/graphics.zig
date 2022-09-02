@@ -2,6 +2,7 @@ const std = @import("std");
 const gl = @import("gl.zig");
 const glfw = @import("glfw");
 const math = @import("math.zig");
+const system = @import("system.zig");
 const util = @import("utility.zig");
 
 const CSys = math.CSys;
@@ -205,6 +206,96 @@ pub const Camera = struct {
         var e1 = math.cross(up, e3);        
         var csys = math.CSys.initE1E3(position, e1, e3);
         self.setCoordinateSystem(csys);
+    }
+
+};
+
+pub const MouseCameraControl = struct {
+    const Self = @This();
+
+    isRotating: bool = false,
+    initialClick: math.Point2i,
+    initialCsys: math.CSys,
+    camera: *Camera,
+    viewportWidth: u32,
+    viewportHeight: u32,
+
+    pub fn init(camera: *Camera, viewportWidth: u32, viewportHeight: u32) Self {
+        return Self {
+            .isRotating = false,
+            .initialClick = undefined,
+            .initialCsys = undefined,
+            .camera = camera,
+            .viewportWidth = viewportWidth,
+            .viewportHeight = viewportHeight
+        };
+    }
+
+    pub fn handleEvents(self: *Self, events: []system.Event) void {        
+        for (events) |event| {     
+            const isLeftButton = event == EventType.mouseButtonEvent and event.mouseButtonEvent.button == glfw.MouseButton.left;
+            const isPress = event == EventType.mouseButtonEvent and event.mouseButtonEvent.action == glfw.Action.press;
+            const isRelease = event == EventType.mouseButtonEvent and event.mouseButtonEvent.action == glfw.Action.release;
+            const isMouseMove = event == EventType.mouseMoveEvent;     
+
+            if (!self.isRotating and isLeftButton and isPress){
+                self.startCameraRotation(event);    
+            }else if (cameraRotating and isMouseMove){     
+                self.rotateCamera(event);
+            }else if (cameraRotating and isLeftButton and isRelease){
+                endCameraRotation(event);
+            }            
+        }
+    }
+
+    fn startCameraRotation(self: *Self, event: system.MouseButtonEvent) void {
+        self.isRotating = true;
+        self.initialClick = Point2i{
+            .i = @floatToInt(i32, event.mouseButtonEvent.x), 
+            .j = @intCast(i32, pixelBuffer.height) - @floatToInt(i32, event.mouseButtonEvent.y)
+        };                                
+        self.initialCsys = self.camera.csys;   
+    }
+
+    fn rotateCamera(self: *Self, event: system.MouseMoveEvent) void {
+        const currentClick = Point2i{
+            .i = @floatToInt(i32, event.mouseMoveEvent.x), 
+            .j = @intCast(i32, pixelBuffer.height) - @floatToInt(i32, event.mouseMoveEvent.y)
+        };
+
+        const width = @intToFloat(f32, self.viewPortWidth);
+        const height = @intToFloat(f32, self.viewportHeight);
+
+        const deltai = math.subtract(currentClick, self.initialClick);  
+        if (deltai.i == 0 and deltai.j == 0)
+            return;
+
+        const delta = math.convert(Vector2f, deltai);
+        const distance = math.norm(delta); 
+        const direction = math.multiply(delta, 1.0/distance);
+
+        // compute rotation angle
+        const maxDistance = std.math.sqrt(
+            std.math.pow(f32, @fabs(direction.x) * width, 2.0) + 
+            std.math.pow(f32, @fabs(direction.y) * height, 2.0)
+        );
+        const theta = distance / maxDistance * (2*std.math.pi);
+        
+        // compute axis to rotate around        
+        const axis = math.normalise(
+            math.add(
+                math.multiply(-direction.x, csys.e2), 
+                math.multiply(direction.y, csys.e1)
+            )
+        );
+
+        // update camera coordinate system        
+        self.camera.setCoordinateSystem(Quaternion.rotateCsys(Point3f.zero, axis, theta, self.initialCsys));  
+    }
+
+    fn endCameraRotation(self: *Self, event: system.MouseButtonEvent) void {
+        _ = event;
+        self.isRotating = false;
     }
 
 };
